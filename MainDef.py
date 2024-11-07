@@ -181,7 +181,10 @@ class BloodlineAnalyzer:
 
         for item in statement.tokens:
             # 跳过空白和注释
-            if item.is_whitespace or item.ttype == sqlparse.tokens.Comment:
+            if (item.is_whitespace or
+                item.ttype == sqlparse.tokens.Comment or
+                item.ttype == sqlparse.tokens.Comment.Single or
+                item.ttype == sqlparse.tokens.Comment.Multiline):
                 continue
 
             if item.is_group and not TokenUtils.is_identifier(item):
@@ -212,8 +215,11 @@ class BloodlineAnalyzer:
         table_name_preceding = False
 
         for item in statement.tokens:
-            # 跳过空白字符和注释
-            if item.is_whitespace or item.ttype == sqlparse.tokens.Comment:
+            # 跳过空白和注释
+            if (item.is_whitespace or
+                item.ttype == sqlparse.tokens.Comment or
+                item.ttype == sqlparse.tokens.Comment.Single or
+                item.ttype == sqlparse.tokens.Comment.Multiline):
                 continue
 
             if item.is_group and not TokenUtils.is_identifier(item):
@@ -330,165 +336,141 @@ class BloodlineAnalyzer:
         return [token for token in statement.tokens
                 if token._get_repr_name() == 'Identifier']
 
-
 class BloodlineVisualizer:
     """血缘关系可视化类"""
-
     @staticmethod
-    def create_table_tree(table_names: List[str], type_name: str) -> Optional[Tree]:
-        """创建表血缘树图
+    def create_column_sankey(table_names, column_names):
+        """创建字段血缘桑基图"""
+        nodes = []
+        # 添加表节点
+        for table in table_names:
+            nodes.append({"name": table})
 
-        Args:
-            table_names: 表名列表
-            type_name: SQL语句类型
+        # 添加列节点
+        for i in range(1, len(column_names)):
+            for col in column_names[i]:
+                nodes.append({"name": col})
 
-        Returns:
-            Tree: 树图对象
-            None: 如果没有表名数据
-        """
-        # 1. 输入验证
-        if not table_names:
-            print("警告: 没有表名数据可供可视化")
-            return None
+        # 去重
+        nodes = [i for n, i in enumerate(nodes) if i not in nodes[:n]]
 
-        # 2. 去重处理
-        table_names = list(set(table_names))
+        # 创建链接
+        links = []
+        # 表之间的链接
+        for i in range(1, len(table_names)):
+            links.append({
+                'source': table_names[0],
+                'target': table_names[i],
+                'value': 10
+            })
 
-        # 3. 根据SQL类型构建不同的树结构
-        try:
-            if type_name != 'SELECT':
-                # 非SELECT语句: 第一个表为目标表，其他为源表
-                children = [{"name": name} for name in table_names[1:]]
-                data = [{"children": children, "name": table_names[0]}]
-                title = f"血缘-{type_name}"
-            else:
-                # SELECT语句: 所有表平级展示
-                children = [{"name": name} for name in table_names]
-                data = [{"children": children, "name": 'SELECT'}]
-                title = f"查询-{type_name}"
-
-            # 4. 创建树图
-            tree = (
-                Tree()
-                .add(
-                    "",
-                    data,
-                    orient="TB",
-                    initial_tree_depth=2,
-                    collapse_interval=0
-                )
-                .set_global_opts(
-                    title_opts=opts.TitleOpts(
-                        title=title,
-                        subtitle="表血缘关系图"
-                    ),
-                    toolbox_opts=opts.ToolboxOpts(is_show=True),
-                    tooltip_opts=opts.TooltipOpts(
-                        trigger="item",
-                        trigger_on="mousemove"
-                    )
-                )
-            )
-
-            return tree.render_notebook()
-
-        except Exception as e:
-            print(f"创建表血缘树图时发生错误: {e}")
-            return None
-
-    @staticmethod
-    def create_column_sankey(
-        table_names: List[str],
-        column_names: List[List[str]]
-    ) -> Optional[Sankey]:
-        """创建字段血缘桑基图
-
-        Args:
-            table_names: 表名列表
-            column_names: 列名二维列表
-
-        Returns:
-            Sankey: 桑基图对象
-            None: 如果没有数据可供可视化
-        """
-        # 1. 输入验证
-        if not table_names or not column_names:
-            print("警告: 没有数据可供可视化")
-            return None
-
-        try:
-            # 2. 创建节点
-            nodes = []
-            # 添加表节点
-            for table in table_names:
-                nodes.append({"name": table})
-
-            # 添加列节点
-            for i in range(1, len(column_names)):
-                for col in column_names[i]:
-                    nodes.append({"name": col})
-
-            # 去重
-            nodes = [i for n, i in enumerate(nodes) if i not in nodes[:n]]
-
-            # 3. 创建链接
-            links = []
-            # 表之间的链接
-            for i in range(1, len(table_names)):
+        # 表和列之间的链接
+        for i in range(1, len(table_names)):
+            for col in column_names[i]:
                 links.append({
-                    'source': table_names[0],
-                    'target': table_names[i],
-                    'value': 10
+                    'source': table_names[i],
+                    'target': col,
+                    'value': 5
                 })
 
-            # 表和列之间的链接
-            for i in range(1, len(table_names)):
-                for col in column_names[i]:
-                    links.append({
-                        'source': table_names[i],
-                        'target': col,
-                        'value': 5
-                    })
-
-            # 4. 创建桑基图
-            sankey = (
-                Sankey()
-                .add(
-                    "表与字段",
-                    nodes=nodes,
-                    links=links,
-                    linestyle_opt=opts.LineStyleOpts(
-                        opacity=0.5,
-                        curve=0.5,
-                        color="source"
-                    ),
-                    label_opts=opts.LabelOpts(position="right"),
-                    node_width=20,
-                    node_gap=10,
-                )
-                .set_global_opts(
-                    title_opts=opts.TitleOpts(
-                        title="字段血缘",
-                        subtitle="表与字段关系图"
-                    )
-                )
+        # 创建桑基图
+        sankey = (
+            Sankey()
+            .add(
+                "表与字段",
+                nodes=nodes,
+                links=links,
+                linestyle_opt=opts.LineStyleOpts(opacity=0.5, curve=0.5, color="source"),
+                label_opts=opts.LabelOpts(position="right"),
+                node_width=20,
+                node_gap=10,
             )
+            .set_global_opts(title_opts=opts.TitleOpts(title="字段血缘"))
+        )
 
-            return sankey.render_notebook()
+        return sankey.render_notebook()
 
-        except Exception as e:
-            print(f"创建字段血缘桑基图时发生错误: {e}")
-            return None
+    @staticmethod
+    def create_table_tree(table_names, type_name):
+        """创建表血缘树图"""
+        table_names = list(set(table_names))
+
+        if type_name != 'SELECT':
+            children = [{"name": name} for name in table_names[1:]]
+            data = [{"children": children, "name": table_names[0]}]
+            title = f"血缘-{type_name}"
+        else:
+            children = [{"name": name} for name in table_names]
+            data = [{"children": children, "name": 'SELECT'}]
+            title = f"查询-{type_name}"
+
+        tree = (
+            Tree()
+            .add(
+                "",
+                data,
+                orient="TB",
+                initial_tree_depth=2
+            )
+            .set_global_opts(
+                title_opts=opts.TitleOpts(title=title),
+                toolbox_opts=opts.ToolboxOpts(is_show=True),
+                tooltip_opts=opts.TooltipOpts(trigger="item", trigger_on="mousemove")
+            )
+        )
+
+        return tree.render_notebook()
 
 # 工具函数
-def analysis_statements(sql_str):
-    """解析SQL语句"""
-    return sqlparse.parse(sql_str)
+def analysis_statements(sql_str: str) -> List[sqlparse.sql.Statement]:
+    """解析SQL语句，排除注释
 
-def get_sqlstr(file_path):
-    """从文件读取SQL语句"""
-    with open(file_path, encoding='utf-8') as file:
-        content = file.read()
-        sql_str = sqlparse.format(content, reindent=True, keyword_case='upper')
-        sql_str = sql_str.strip(' \t\n;')
-        return textwrap.indent(sql_str, "  ")
+    Args:
+        sql_str: SQL语句字符串
+
+    Returns:
+        List[Statement]: 解析后的SQL语句列表，不包含注释
+    """
+    # 1. 格式化SQL，统一大小写和缩进
+    formatted_sql = sqlparse.format(
+        sql_str,
+        strip_comments=True,  # 去除注释
+        reindent=True,       # 重新缩进
+        keyword_case='upper' # 关键字大写
+    )
+
+    # 2. 解析SQL语句
+    statements = sqlparse.parse(formatted_sql)
+
+    # 3. 过滤掉空语句
+    return [stmt for stmt in statements if not stmt.is_whitespace]
+
+def get_sqlstr(file_path: str) -> str:
+    """从文件读取SQL语句，并进行预处理
+
+    Args:
+        file_path: SQL文件路径
+
+    Returns:
+        str: 处理后的SQL语句字符串
+    """
+    try:
+        with open(file_path, encoding='utf-8') as file:
+            content = file.read()
+
+            # 格式化SQL，去除注释
+            sql_str = sqlparse.format(
+                content,
+                strip_comments=True,  # 去除注释
+                reindent=True,        # 重新缩进
+                keyword_case='upper'  # 关键字大写
+            )
+
+            # 去除首尾空白和分号
+            sql_str = sql_str.strip(' \t\n;')
+
+            return textwrap.indent(sql_str, "  ")
+
+    except Exception as e:
+        print(f"读取SQL文件时发生错误: {e}")
+        return ""
