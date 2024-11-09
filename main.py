@@ -2,12 +2,19 @@
 Author: Shaowen He
 Date: 2024-11-07 11:05:51
 LastEditors: heshw@live.cn
-LastEditTime: 2024-11-07 14:24:25
+LastEditTime: 2024-11-09 13:18:31
 FilePath: /sqlparse-Python/main.py
 Description:
 
 Copyright (c) 2024 by Shaowen He, All Rights Reserved.
 '''
+
+# 设置Jupyter Notebook环境，否则echarts无法显示
+# 降级notebook==6.0.1，以下内容不需要，否则无法显示
+# from pyecharts.globals import CurrentConfig, NotebookType
+# CurrentConfig.NOTEBOOK_TYPE = NotebookType.JUPYTER_NOTEBOOK
+
+
 from MainDef import *
 
 
@@ -59,24 +66,9 @@ if __name__ == '__main__':
 
     # 读取SQL文件
     sql_str = get_sqlstr('example_complex_sql.sql')
-    statements = analysis_statements(sql_str)
 
-    # 对每个SQL语句进行分析
-    for stmt in statements:
-        # 重置分析器状态
-        analyzer.reset()
-
-        # 分析血缘关系
-        table_bloodline = analyzer.analyze_table_bloodline(stmt)
-        column_bloodline = analyzer.analyze_column_bloodline(stmt)
-
-        print(table_bloodline)
-        print(column_bloodline)
-
-        print('--------------------------------')
-
-        # 可视化
-        process_sql_visualization(sql_str)
+    # 可视化
+    process_sql_visualization(sql_str)
 
 
 

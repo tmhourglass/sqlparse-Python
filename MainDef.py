@@ -388,6 +388,7 @@ class BloodlineVisualizer:
             .set_global_opts(title_opts=opts.TitleOpts(title="字段血缘"))
         )
 
+        sankey.load_javascript()
         return sankey.render_notebook()
 
     @staticmethod
@@ -419,6 +420,7 @@ class BloodlineVisualizer:
             )
         )
 
+        tree.load_javascript()
         return tree.render_notebook()
 
 # 工具函数
